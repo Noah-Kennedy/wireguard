@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-proto = []
-session = ["proto"]
-router = ["session"]
-device = ["router"]
+wire = []
+crypto = ["wire"]
+session = ["crypto", "wire"]
+router = ["session", "crypto", "wire"]
+device = ["router", "session", "crypto", "wire"]
 
 [dependencies]
+ring = { version = "0.16.20", optional = true }

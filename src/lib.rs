@@ -1,4 +1,4 @@
-#[cfg(feature = "proto")]
+#[cfg(feature = "wire")]
 pub mod proto;
 
 #[cfg(feature = "session")]
