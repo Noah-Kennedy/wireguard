@@ -184,7 +184,7 @@ where
 
 impl<A> HandshakeResponse<A>
 where
-    A: AsMut<[u8; 76]>,
+    A: AsMut<[u8]>,
 {
     #[inline]
     pub fn ty_mut(&mut self) -> &mut u8 {
