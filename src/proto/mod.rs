@@ -31,10 +31,11 @@ where
 
         let len = buf.as_ref().len();
 
+        // we can allow larger messages for the purposes of things like trash-padding
         match ty {
-            1 if len == 116 => Some(Packet::HandshakeInitiation(HandshakeInitiation::new(buf))),
-            2 if len == 76 => Some(Packet::HandshakeResponse(HandshakeResponse::new(buf))),
-            3 if len == 48 => Some(Packet::CookieReply(CookieReply::new(buf))),
+            1 if len >= 116 => Some(Packet::HandshakeInitiation(HandshakeInitiation::new(buf))),
+            2 if len >= 76 => Some(Packet::HandshakeResponse(HandshakeResponse::new(buf))),
+            3 if len >= 48 => Some(Packet::CookieReply(CookieReply::new(buf))),
             4 if len >= 16 => Some(Packet::TransportData(TransportData::new(buf))),
             _ => None,
         }
