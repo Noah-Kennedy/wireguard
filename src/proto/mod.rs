@@ -25,6 +25,7 @@ impl<A> Packet<A>
 where
     A: AsRef<[u8]>,
 {
+    #[inline]
     pub fn parse(buf: A) -> Option<Self> {
         let ty = *buf.as_ref().get(0)?;
 
