@@ -9,3 +9,6 @@ pub mod router;
 
 #[cfg(feature = "device")]
 pub mod device;
+
+#[cfg(feature = "crypto")]
+pub mod crypto;
