@@ -1,11 +1,8 @@
-#[cfg(feature = "proto")]
-pub mod proto;
+#[cfg(feature = "wire")]
+pub mod wire;
 
-#[cfg(feature = "session")]
-pub mod session;
+#[cfg(feature = "peer")]
+pub mod peer;
 
-#[cfg(feature = "router")]
-pub mod router;
-
-#[cfg(feature = "device")]
-pub mod device;
+#[cfg(feature = "interface")]
+pub mod interface;
