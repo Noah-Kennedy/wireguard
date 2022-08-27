@@ -4,5 +4,5 @@ pub mod wire;
 #[cfg(feature = "peer")]
 pub mod peer;
 
-#[cfg(feature = "interface")]
-pub mod interface;
+#[cfg(feature = "routing")]
+pub mod routing;
