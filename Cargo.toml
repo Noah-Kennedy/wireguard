@@ -1,14 +1,5 @@
-[package]
-name = "wireguard"
-version = "0.1.0"
-edition = "2021"
-
-[features]
-wire = []
-peer = ["wire"]
-routing = ["ip_network_table", "slab", "ip_network"]
-
-[dependencies]
-ip_network_table = { version = "0.2.0", optional = true }
-ip_network = { version = "0.4.1", optional = true }
-slab = { version = "0.4.7", optional = true }
+[workspace]
+members = [
+    "wireguard",
+    "wireguard-cli",
+]
