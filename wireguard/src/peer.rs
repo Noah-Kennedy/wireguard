@@ -41,6 +41,10 @@ impl Peer {
     pub fn enumerate_capabilities(&self) -> Capabilities {
         todo!()
     }
+
+    pub fn next(&self) -> usize {
+        (self.current + 1) % 3
+    }
 }
 
 impl Capabilities {
