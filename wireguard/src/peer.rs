@@ -16,7 +16,8 @@ pub struct PeerSession {
     chaining: [u8; 32],
     tx_key: [u8; 32],
     rx_key: [u8; 32],
-    rx_nonce: u64,
+    // not needed the way this is currently implemented
+    _rx_nonce: u64,
     tx_nonce: u64,
     index: u32,
 }
@@ -80,26 +81,32 @@ impl EncodeDecodeCapability {
     pub fn encode(&self, peer: &mut Peer, headers: &mut [u8], packet: &mut Vec<u8>) {
         let current_session = &mut peer.sessions[peer.current];
 
-        // apply padding to packet
+        // apply padding to packet to make this a multiple of 16
         // this would be simpler if div_ceil were stable!!!
         let padding_amount = 16 * ((packet.len() + 16 - 1) / 16) - packet.len();
         packet.resize(packet.len() + padding_amount, 0);
 
         // encrypt
-        aead(&current_session.tx_key, current_session.tx_nonce, packet, &[]);
+        seal_aead(&current_session.tx_key, current_session.tx_nonce, packet, &[]);
 
         // set header fields
         let mut msg_headers = wire::TransportData::new(headers);
         *msg_headers.ty_mut() = 0x04;
         *msg_headers.receiver_mut() = current_session.index.to_le_bytes();
-        *msg_headers.counter_mut() = current_session.rx_nonce.to_le_bytes();
+        *msg_headers.counter_mut() = current_session.tx_nonce.to_le_bytes();
 
         // advance the nonce counter
-        peer.sessions[peer.current].rx_nonce += 1;
+        peer.sessions[peer.current].tx_nonce += 1;
     }
 
-    pub fn decode(&self, _peer: &mut Peer, _headers: &mut [u8], _packet: &mut [u8]) {
-        todo!()
+    pub fn decode(&self, peer: &mut Peer, headers: &[u8], packet: &mut Vec<u8>) -> bool {
+        let current_session = &mut peer.sessions[peer.current];
+
+        let msg_headers = wire::TransportData::new(headers);
+
+        let nonce = u64::from_le_bytes(*msg_headers.counter());
+
+        unseal_aead(&current_session.rx_key, nonce, packet, &[])
     }
 }
 
@@ -121,7 +128,20 @@ impl ReceiveHandshakeResponseCapability {
     }
 }
 
-fn aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8]) {
+fn unseal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8]) -> bool {
+    let key = Key::from_slice(key);
+
+    let chacha = ChaCha20Poly1305::new(key);
+
+    let mut nonce = [0u8; 12];
+    nonce[4..].clone_from_slice(&counter.to_le_bytes());
+    let nonce = Nonce::from_slice(&nonce);
+
+    // infallible
+    chacha.decrypt_in_place(nonce, auth, plaintext).is_ok()
+}
+
+fn seal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8]) {
     let key = Key::from_slice(key);
 
     let chacha = ChaCha20Poly1305::new(key);
