@@ -1,5 +1,5 @@
-use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, Key, KeyInit, Nonce};
 use crate::wire;
+use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, Key, KeyInit, Nonce};
 
 pub struct Peer {
     public_key: [u8; 32],
@@ -91,7 +91,12 @@ impl EncodeDecodeCapability {
         packet.resize(packet.len() + padding_amount, 0);
 
         // encrypt
-        seal_aead(&current_session.tx_key, current_session.tx_nonce, packet, &[]);
+        seal_aead(
+            &current_session.tx_key,
+            current_session.tx_nonce,
+            packet,
+            &[],
+        );
 
         // set header fields
         let mut msg_headers = wire::TransportData::new(headers);
@@ -141,7 +146,6 @@ fn unseal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8
     nonce[4..].clone_from_slice(&counter.to_le_bytes());
     let nonce = Nonce::from_slice(&nonce);
 
-    // infallible
     chacha.decrypt_in_place(nonce, auth, plaintext).is_ok()
 }
 
@@ -154,6 +158,5 @@ fn seal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8])
     nonce[4..].clone_from_slice(&counter.to_le_bytes());
     let nonce = Nonce::from_slice(&nonce);
 
-    // infallible
     chacha.encrypt_in_place(nonce, auth, plaintext).unwrap();
 }
