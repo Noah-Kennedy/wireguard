@@ -3,12 +3,12 @@ use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, Key, KeyInit, Nonce};
 
 pub struct Peer {
     public_key: [u8; 32],
-    sessions: [PeerSession; 3],
+    sessions: [Option<Box<PeerSession>>; 3],
     current: usize,
 }
 
 // todo put keys into something that zeroes out
-pub struct PeerSession {
+struct PeerSession {
     ephemeral_private: [u8; 32],
     ephemeral_public: [u8; 32],
     psk: [u8; 32],
@@ -83,7 +83,7 @@ impl Capabilities {
 
 impl EncodeDecodeCapability {
     pub fn encode(&self, peer: &mut Peer, headers: &mut [u8], packet: &mut Vec<u8>) {
-        let current_session = &mut peer.sessions[peer.current];
+        let current_session = peer.sessions[peer.current].as_mut().unwrap();
 
         // apply padding to packet to make this a multiple of 16
         // this would be simpler if div_ceil were stable!!!
@@ -105,11 +105,11 @@ impl EncodeDecodeCapability {
         *msg_headers.counter_mut() = current_session.tx_nonce.to_le_bytes();
 
         // advance the nonce counter
-        peer.sessions[peer.current].tx_nonce += 1;
+        current_session.tx_nonce += 1;
     }
 
     pub fn decode(&self, peer: &mut Peer, headers: &[u8], packet: &mut Vec<u8>) -> bool {
-        let current_session = &mut peer.sessions[peer.current];
+        let current_session = peer.sessions[peer.current].as_mut().unwrap();
 
         let msg_headers = wire::TransportData::new(headers);
 
