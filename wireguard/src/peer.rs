@@ -1,7 +1,6 @@
 use crate::wire;
-use blake2::{Blake2s, Digest};
-use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, Key, KeyInit, Nonce};
-use x25519_dalek::ReusableSecret;
+use blake2::{Blake2s, Blake2s256, Digest};
+use x25519_dalek::{PublicKey, ReusableSecret};
 
 const SESSIONS: usize = 3;
 const CONSTRUCTION: &[u8; 37] = b"Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s";
@@ -9,13 +8,22 @@ const IDENTIFIER: &[u8; 34] = b"WireGuard v1 zx2c4 Jason@zx2c4.com";
 
 pub struct Peer {
     public_key: [u8; 32],
+    handshake: Option<Box<Handshake>>,
     sessions: [Option<Box<PeerSession>>; SESSIONS],
     current: usize,
     index: u32,
 }
 
-// todo put keys into something that zeroes out
 struct PeerSession {
+    tx_key: [u8; 32],
+    rx_key: [u8; 32],
+    // not needed the way this is currently implemented
+    _rx_nonce: u64,
+    tx_nonce: u64,
+    tx_index: u32,
+}
+
+struct Handshake {
     ephemeral_private: ReusableSecret,
     ephemeral_public: [u8; 32],
     psk: [u8; 32],
@@ -29,7 +37,7 @@ struct PeerSession {
     tx_index: u32,
 }
 
-impl PeerSession {
+impl Handshake {
     fn new(ephemeral_private: ReusableSecret) -> Self {
         Self {
             ephemeral_private,
@@ -66,26 +74,24 @@ impl Peer {
         todo!()
     }
 
-    fn initiate_handshake(&mut self, static_public: &[u8; 32], packet: &mut [u8]) {
-        let new_idx = (self.current + 1) % SESSIONS;
+    pub fn initiate_handshake(&mut self, static_public: &[u8; 32], packet: &mut [u8]) {
+        self.handshake = Some(Box::new(Handshake::new(dh_generate())));
 
-        if self.sessions[new_idx].is_none() {
-            self.sessions[new_idx] = Some(Box::new(PeerSession::new(dh_generate())));
-        }
+        let handshake = self.handshake.as_mut().unwrap();
 
-        let session = self.sessions[new_idx].as_mut().unwrap();
-
-        hash(&[CONSTRUCTION], &mut session.chaining);
+        hash(&[CONSTRUCTION], &mut handshake.chaining);
 
         let mut temp = [0; 32];
-        hash(&[&session.chaining, IDENTIFIER], &mut temp);
-        hash(&[&temp, &self.public_key], &mut session.hash);
+        hash(&[&handshake.chaining, IDENTIFIER], &mut temp);
+        hash(&[&temp, &self.public_key], &mut handshake.hash);
 
         let mut msg = wire::HandshakeInitiation::new(packet);
 
         *msg.ty_mut() = 0x01;
         *msg.reserved_mut() = [0; 3];
         *msg.sender_mut() = self.index.to_le_bytes();
+
+        *msg.ephemeral_mut() = PublicKey::from(&handshake.ephemeral_private).to_bytes();
     }
 
     fn encode(&mut self, headers: &mut [u8], packet: &mut Vec<u8>) {
@@ -191,8 +197,23 @@ fn dh_generate() -> ReusableSecret {
     x25519_dalek::ReusableSecret::new(rand_core::OsRng)
 }
 
+fn hmac(key: &[u8], input: &[&[u8]], output: &mut [u8]) {
+    use blake2::digest::FixedOutput;
+    use hmac::{Mac, SimpleHmac};
+
+    let mut hmac: SimpleHmac<Blake2s256> = SimpleHmac::new_from_slice(key).unwrap();
+
+    for slice in input {
+        hmac.update(slice);
+    }
+
+    hmac.finalize_into(blake2::digest::generic_array::GenericArray::from_mut_slice(
+        output,
+    ));
+}
+
 fn hash(input: &[&[u8]], output: &mut [u8]) {
-    let mut hasher: Blake2s<blake2::digest::consts::U32> = Blake2s::new();
+    let mut hasher: Blake2s256 = Blake2s::new();
 
     for slice in input {
         hasher.update(slice);
@@ -204,6 +225,8 @@ fn hash(input: &[&[u8]], output: &mut [u8]) {
 }
 
 fn unseal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8]) -> bool {
+    use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, Key, KeyInit, Nonce};
+
     let key = Key::from_slice(key);
 
     let chacha = ChaCha20Poly1305::new(key);
@@ -216,6 +239,8 @@ fn unseal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8
 }
 
 fn seal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8]) {
+    use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, Key, KeyInit, Nonce};
+
     let key = Key::from_slice(key);
 
     let chacha = ChaCha20Poly1305::new(key);

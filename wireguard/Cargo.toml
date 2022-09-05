@@ -4,15 +4,24 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
+# wire protocol definitions
 wire = []
-peer = ["wire", "chacha20poly1305", "blake2"]
-routing = ["ip_network_table", "slab", "ip_network", "x25519-dalek"]
+# peer session/tunnel api
+peer = ["wire", "chacha20poly1305", "blake2", "x25519-dalek", "rand_core", "either", "tai64", "hmac"]
+# cryptokey routing and lookup utilities
+routing = ["ip_network_table", "slab", "ip_network"]
 
 [dependencies]
+# data structures needed for routing
 ip_network_table = { version = "0.2.0", optional = true }
 ip_network = { version = "0.4.1", optional = true }
 slab = { version = "0.4.7", optional = true }
+
+# crypto stuff needed for peer
 chacha20poly1305 = { version = "0.10.1", optional = true }
 blake2 = { version = "0.10.4", optional = true }
 x25519-dalek = { version = "2.0.0-pre.1", features = ["reusable_secrets"], optional = true }
-rand_core = "0.6.3"
+rand_core = { version = "0.6.3", optional = true }
+either = { version = "1.8.0", optional = true }
+tai64 = { version = "4.0.0", optional = true }
+hmac = { version = "0.12.1", optional = true }
