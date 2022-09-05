@@ -1,6 +1,9 @@
 use crate::wire;
-use blake2::{Blake2s, Blake2s256, Digest};
 use x25519_dalek::{PublicKey, ReusableSecret};
+
+mod crypto;
+
+use crypto::*;
 
 const SESSIONS: usize = 3;
 const CONSTRUCTION: &[u8; 37] = b"Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s";
@@ -191,63 +194,4 @@ impl ReceiveHandshakeResponseCapability {
     pub fn consume(self, _peer: &mut Peer, _packet: &mut [u8]) {
         todo!()
     }
-}
-
-fn dh_generate() -> ReusableSecret {
-    x25519_dalek::ReusableSecret::new(rand_core::OsRng)
-}
-
-fn hmac(key: &[u8], input: &[&[u8]], output: &mut [u8]) {
-    use blake2::digest::FixedOutput;
-    use hmac::{Mac, SimpleHmac};
-
-    let mut hmac: SimpleHmac<Blake2s256> = SimpleHmac::new_from_slice(key).unwrap();
-
-    for slice in input {
-        hmac.update(slice);
-    }
-
-    hmac.finalize_into(blake2::digest::generic_array::GenericArray::from_mut_slice(
-        output,
-    ));
-}
-
-fn hash(input: &[&[u8]], output: &mut [u8]) {
-    let mut hasher: Blake2s256 = Blake2s::new();
-
-    for slice in input {
-        hasher.update(slice);
-    }
-
-    hasher.finalize_into(blake2::digest::generic_array::GenericArray::from_mut_slice(
-        output,
-    ));
-}
-
-fn unseal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8]) -> bool {
-    use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, Key, KeyInit, Nonce};
-
-    let key = Key::from_slice(key);
-
-    let chacha = ChaCha20Poly1305::new(key);
-
-    let mut nonce = [0u8; 12];
-    nonce[4..].clone_from_slice(&counter.to_le_bytes());
-    let nonce = Nonce::from_slice(&nonce);
-
-    chacha.decrypt_in_place(nonce, auth, plaintext).is_ok()
-}
-
-fn seal_aead(key: &[u8; 32], counter: u64, plaintext: &mut Vec<u8>, auth: &[u8]) {
-    use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, Key, KeyInit, Nonce};
-
-    let key = Key::from_slice(key);
-
-    let chacha = ChaCha20Poly1305::new(key);
-
-    let mut nonce = [0u8; 12];
-    nonce[4..].clone_from_slice(&counter.to_le_bytes());
-    let nonce = Nonce::from_slice(&nonce);
-
-    chacha.encrypt_in_place(nonce, auth, plaintext).unwrap();
 }
