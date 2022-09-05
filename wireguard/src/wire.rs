@@ -33,7 +33,7 @@ where
 
         // we can allow larger messages for the purposes of things like trash-padding
         match ty {
-            1 if len >= 116 => Some(Packet::HandshakeInitiation(HandshakeInitiation::new(buf))),
+            1 if len >= 148 => Some(Packet::HandshakeInitiation(HandshakeInitiation::new(buf))),
             2 if len >= 76 => Some(Packet::HandshakeResponse(HandshakeResponse::new(buf))),
             3 if len >= 48 => Some(Packet::CookieReply(CookieReply::new(buf))),
             4 if len >= 16 => Some(Packet::TransportData(TransportData::new(buf))),
@@ -72,23 +72,23 @@ where
     }
 
     #[inline]
-    pub fn static_(&self) -> &[u8; 32] {
-        (&self.buf.as_ref()[40..72]).try_into().unwrap()
+    pub fn static_(&self) -> &[u8; 48] {
+        (&self.buf.as_ref()[40..88]).try_into().unwrap()
     }
 
     #[inline]
-    pub fn timestamp(&self) -> &[u8; 12] {
-        (&self.buf.as_ref()[72..84]).try_into().unwrap()
+    pub fn timestamp(&self) -> &[u8; 28] {
+        (&self.buf.as_ref()[88..116]).try_into().unwrap()
     }
 
     #[inline]
     pub fn mac1(&self) -> &[u8; 16] {
-        (&self.buf.as_ref()[84..100]).try_into().unwrap()
+        (&self.buf.as_ref()[116..132]).try_into().unwrap()
     }
 
     #[inline]
     pub fn mac2(&self) -> &[u8; 16] {
-        (&self.buf.as_ref()[100..116]).try_into().unwrap()
+        (&self.buf.as_ref()[132..148]).try_into().unwrap()
     }
 }
 
@@ -117,23 +117,23 @@ where
     }
 
     #[inline]
-    pub fn static_mut(&mut self) -> &mut [u8; 32] {
-        (&mut self.buf.as_mut()[40..72]).try_into().unwrap()
+    pub fn static_mut(&mut self) -> &mut [u8; 48] {
+        (&mut self.buf.as_mut()[40..88]).try_into().unwrap()
     }
 
     #[inline]
-    pub fn timestamp_mut(&mut self) -> &mut [u8; 12] {
-        (&mut self.buf.as_mut()[72..84]).try_into().unwrap()
+    pub fn timestamp_mut(&mut self) -> &mut [u8; 28] {
+        (&mut self.buf.as_mut()[88..116]).try_into().unwrap()
     }
 
     #[inline]
     pub fn mac1_mut(&mut self) -> &mut [u8; 16] {
-        (&mut self.buf.as_mut()[84..100]).try_into().unwrap()
+        (&mut self.buf.as_mut()[116..132]).try_into().unwrap()
     }
 
     #[inline]
     pub fn mac2_mut(&mut self) -> &mut [u8; 16] {
-        (&mut self.buf.as_mut()[100..116]).try_into().unwrap()
+        (&mut self.buf.as_mut()[132..148]).try_into().unwrap()
     }
 }
 

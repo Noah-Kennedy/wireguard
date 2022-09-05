@@ -3,6 +3,9 @@ use x25519_dalek::{PublicKey, ReusableSecret};
 
 mod crypto;
 
+#[cfg(test)]
+mod tests;
+
 use crypto::*;
 
 const SESSIONS: usize = 3;
