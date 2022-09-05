@@ -8,11 +8,12 @@ use crypto::*;
 const SESSIONS: usize = 3;
 const CONSTRUCTION: &[u8; 37] = b"Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s";
 const IDENTIFIER: &[u8; 34] = b"WireGuard v1 zx2c4 Jason@zx2c4.com";
+const LABEL_MAC1: &[u8; 8] = b"mac1----";
 
 pub struct Peer {
+    sessions: [Option<Box<PeerSession>>; SESSIONS],
     public_key: PublicKey,
     handshake: Option<Box<Handshake>>,
-    sessions: [Option<Box<PeerSession>>; SESSIONS],
     current: usize,
     index: u32,
 }
@@ -29,15 +30,8 @@ struct PeerSession {
 struct Handshake {
     ephemeral_private: ReusableSecret,
     ephemeral_public: [u8; 32],
-    psk: [u8; 32],
     hash: [u8; 32],
     chaining: [u8; 32],
-    tx_key: [u8; 32],
-    rx_key: [u8; 32],
-    // not needed the way this is currently implemented
-    _rx_nonce: u64,
-    tx_nonce: u64,
-    tx_index: u32,
 }
 
 impl Handshake {
@@ -45,14 +39,8 @@ impl Handshake {
         Self {
             ephemeral_private,
             ephemeral_public: [0; 32],
-            psk: [0; 32],
             hash: [0; 32],
             chaining: [0; 32],
-            tx_key: [0; 32],
-            rx_key: [0; 32],
-            _rx_nonce: 0,
-            tx_nonce: 0,
-            tx_index: 0,
         }
     }
 }
@@ -77,7 +65,7 @@ impl Peer {
         todo!()
     }
 
-    pub fn initiate_handshake(&mut self, static_public: &[u8; 32], packet: &mut [u8]) {
+    pub fn initiate_handshake(&mut self, packet: &mut [u8]) {
         // setup a current in-flight handshake, initialized with just a key so far
         self.handshake = Some(Box::new(Handshake::new(dh_generate())));
         let handshake = self.handshake.as_mut().unwrap();
@@ -125,21 +113,39 @@ impl Peer {
         hmac(&temp, &[&handshake.chaining, &[0x02]], &mut key);
 
         // msg.encrypted_timestamp = AEAD(key, 0, TAI64N(), initiator.hash)
-        // todo
+        let mut tai = tai64::Tai64N::now().to_bytes().to_vec();
+        seal_aead(&key, 0, &mut tai, &handshake.hash);
+        msg.timestamp_mut().copy_from_slice(&tai);
         // initiator.hash = HASH(initiator.hash || msg.encrypted_timestamp)
-        // todo
+        hash(&[&handshake.hash, msg.timestamp()], &mut temp);
+        handshake.hash = temp;
 
         // msg.mac1 = MAC(HASH(LABEL_MAC1 || responder.static_public), msg[0:offsetof(msg.mac1)])
-        // todo
+        let mut mac1 = [0; 16];
+        hash(&[LABEL_MAC1, self.public_key.as_bytes()], &mut temp);
+        mac(
+            &temp,
+            &[
+                &[*msg.ty_()],
+                msg.reserved(),
+                msg.sender(),
+                msg.ephemeral(),
+                msg.static_(),
+                msg.timestamp(),
+            ],
+            &mut mac1,
+        );
+        *msg.mac1_mut() = mac1;
 
         // if (initiator.last_received_cookie is empty or expired)
         //     msg.mac2 = [zeros]
         // else
         //     msg.mac2 = MAC(initiator.last_received_cookie, msg[0:offsetof(msg.mac2)])
-        // todo
+        // todo handle cookies
+        *msg.mac2_mut() = [0; 16];
     }
 
-    fn encode(&mut self, headers: &mut [u8], packet: &mut Vec<u8>) {
+    pub fn encode(&mut self, headers: &mut [u8], packet: &mut Vec<u8>) {
         let current_session = self.sessions[self.current].as_mut().unwrap();
 
         // apply padding to packet to make this a multiple of 16
@@ -221,8 +227,8 @@ impl EncodeDecodeCapability {
 }
 
 impl SendHandshakeInitiationCapability {
-    pub fn generate(self, _peer: &mut Peer, _packet: &mut [u8]) {
-        todo!()
+    pub fn generate(self, peer: &mut Peer, packet: &mut [u8]) {
+        peer.initiate_handshake(packet);
     }
 }
 

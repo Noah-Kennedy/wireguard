@@ -1,5 +1,5 @@
-use blake2::{Blake2s, Blake2s256, Digest};
-use x25519_dalek::{PublicKey, ReusableSecret, SharedSecret};
+use blake2::{Blake2s, Blake2s256, Blake2sMac256, Digest};
+use x25519_dalek::{PublicKey, ReusableSecret};
 
 pub(crate) fn dh_generate() -> ReusableSecret {
     x25519_dalek::ReusableSecret::new(rand_core::OsRng)
@@ -20,6 +20,21 @@ pub(crate) fn hmac(key: &[u8], input: &[&[u8]], output: &mut [u8]) {
     }
 
     hmac.finalize_into(blake2::digest::generic_array::GenericArray::from_mut_slice(
+        output,
+    ));
+}
+
+pub(crate) fn mac(key: &[u8], input: &[&[u8]], output: &mut [u8]) {
+    use blake2::digest::FixedOutput;
+    use hmac::Mac;
+
+    let mut mac: Blake2sMac256 = Blake2sMac256::new_from_slice(key).unwrap();
+
+    for slice in input {
+        mac.update(slice);
+    }
+
+    mac.finalize_into(blake2::digest::generic_array::GenericArray::from_mut_slice(
         output,
     ));
 }
