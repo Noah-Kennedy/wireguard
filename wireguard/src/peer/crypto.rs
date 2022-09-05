@@ -1,8 +1,12 @@
 use blake2::{Blake2s, Blake2s256, Digest};
-use x25519_dalek::ReusableSecret;
+use x25519_dalek::{PublicKey, ReusableSecret, SharedSecret};
 
 pub(crate) fn dh_generate() -> ReusableSecret {
     x25519_dalek::ReusableSecret::new(rand_core::OsRng)
+}
+
+pub(crate) fn dh(private_key: &ReusableSecret, public_key: &PublicKey) -> [u8; 32] {
+    private_key.diffie_hellman(public_key).to_bytes()
 }
 
 pub(crate) fn hmac(key: &[u8], input: &[&[u8]], output: &mut [u8]) {

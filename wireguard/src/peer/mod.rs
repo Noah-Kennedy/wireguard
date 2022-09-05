@@ -10,7 +10,7 @@ const CONSTRUCTION: &[u8; 37] = b"Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s";
 const IDENTIFIER: &[u8; 34] = b"WireGuard v1 zx2c4 Jason@zx2c4.com";
 
 pub struct Peer {
-    public_key: [u8; 32],
+    public_key: PublicKey,
     handshake: Option<Box<Handshake>>,
     sessions: [Option<Box<PeerSession>>; SESSIONS],
     current: usize,
@@ -78,23 +78,65 @@ impl Peer {
     }
 
     pub fn initiate_handshake(&mut self, static_public: &[u8; 32], packet: &mut [u8]) {
+        // setup a current in-flight handshake, initialized with just a key so far
         self.handshake = Some(Box::new(Handshake::new(dh_generate())));
-
         let handshake = self.handshake.as_mut().unwrap();
 
+        // initiator.chaining_key = HASH(CONSTRUCTION)
         hash(&[CONSTRUCTION], &mut handshake.chaining);
 
         let mut temp = [0; 32];
+
+        // initiator.hash = HASH(HASH(initiator.chaining_key || IDENTIFIER) || responder.static_public)
         hash(&[&handshake.chaining, IDENTIFIER], &mut temp);
-        hash(&[&temp, &self.public_key], &mut handshake.hash);
+        hash(&[&temp, self.public_key.as_bytes()], &mut handshake.hash);
 
+        // initialize the "simple" fields
         let mut msg = wire::HandshakeInitiation::new(packet);
-
+        // msg.message_type = 1
         *msg.ty_mut() = 0x01;
+        // msg.reserved_zero = { 0, 0, 0 }
         *msg.reserved_mut() = [0; 3];
+        // msg.sender_index = little_endian(initiator.sender_index)
         *msg.sender_mut() = self.index.to_le_bytes();
 
+        // msg.unencrypted_ephemeral = DH_PUBKEY(initiator.ephemeral_private)
         *msg.ephemeral_mut() = PublicKey::from(&handshake.ephemeral_private).to_bytes();
+
+        // temp = HMAC(initiator.chaining_key, msg.unencrypted_ephemeral)
+        hmac(
+            &handshake.chaining,
+            &[&handshake.ephemeral_public],
+            &mut temp,
+        );
+        // initiator.chaining_key = HMAC(temp, 0x1)
+        hmac(&temp, &[&[0x01]], &mut handshake.chaining);
+
+        // agreement = dh(initiator.ephemeral_private, responder.static_public)
+        let agreement = dh(&handshake.ephemeral_private, &self.public_key);
+
+        let mut key = [0; 32];
+
+        // temp = HMAC(initiator.chaining_key, DH(initiator.ephemeral_private, responder.static_public))
+        hmac(&handshake.chaining, &[&agreement], &mut temp);
+        // initiator.chaining_key = HMAC(temp, 0x1)
+        hmac(&temp, &[&[0x01]], &mut handshake.chaining);
+        // key = HMAC(temp, initiator.chaining_key || 0x2)
+        hmac(&temp, &[&handshake.chaining, &[0x02]], &mut key);
+
+        // msg.encrypted_timestamp = AEAD(key, 0, TAI64N(), initiator.hash)
+        // todo
+        // initiator.hash = HASH(initiator.hash || msg.encrypted_timestamp)
+        // todo
+
+        // msg.mac1 = MAC(HASH(LABEL_MAC1 || responder.static_public), msg[0:offsetof(msg.mac1)])
+        // todo
+
+        // if (initiator.last_received_cookie is empty or expired)
+        //     msg.mac2 = [zeros]
+        // else
+        //     msg.mac2 = MAC(initiator.last_received_cookie, msg[0:offsetof(msg.mac2)])
+        // todo
     }
 
     fn encode(&mut self, headers: &mut [u8], packet: &mut Vec<u8>) {
