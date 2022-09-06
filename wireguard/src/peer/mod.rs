@@ -6,6 +6,7 @@ mod crypto;
 #[cfg(test)]
 mod tests;
 
+use crate::wire::HandshakeInitiation;
 use crypto::*;
 
 const SESSIONS: usize = 3;
@@ -146,6 +147,10 @@ impl Peer {
         //     msg.mac2 = MAC(initiator.last_received_cookie, msg[0:offsetof(msg.mac2)])
         // todo handle cookies
         *msg.mac2_mut() = [0; 16];
+    }
+
+    pub fn receive_handshake_initiation(&mut self, packet: &[u8]) -> Option<Handshake> {
+        let msg = HandshakeInitiation::new(packet);
     }
 
     pub fn encode(&mut self, headers: &mut [u8], packet: &mut Vec<u8>) {
